@@ -87,6 +87,10 @@ function NewStatusHandler() {
 				status_string += `<span class="yellow">YOUR MOVE </span>`;
 			} else if (config.behaviour === "self_play") {
 				status_string += `<span class="green">Self-play! </span>`;
+			} else if (config.behaviour === "create_repertoire_white") {
+				status_string += `<span class="green">WHITE REPERTOIRE CREATION (halt?) </span>`;
+			} else if (config.behaviour === "create_repertoire_black") {
+				status_string += `<span class="green">BLACK REPERTOIRE CREATION (halt?) </span>`;
 			} else if (config.behaviour === "auto_analysis") {
 				status_string += `<span class="green">Auto-eval! </span>`;
 			} else if (config.behaviour === "back_analysis") {

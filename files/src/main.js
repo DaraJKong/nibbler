@@ -93,6 +93,8 @@ function startup() {
 		}
 	});
 
+	win.maximize();
+
 	win.once("ready-to-show", () => {
 		try {
 			win.webContents.setZoomFactor(desired_zoomfactor);	// This seems to work, note issue 10572 above.
@@ -194,6 +196,18 @@ function startup() {
 	electron.ipcMain.on("ack_book", (event, msg) => {
 		set_one_check(msg === "polyglot", "Play", "Use Polyglot book...");
 		set_one_check(msg === "pgn", "Play", "Use PGN book...");
+	});
+
+	electron.ipcMain.on("ack_repertoire_depth", (event, msg) => {
+		set_checks("Analysis", "Create engine repertoire", "Depth (halfmoves)", msg);
+	});
+
+	electron.ipcMain.on("ack_relative_depth", (event, msg) => {
+		set_one_check(msg ? true : false, "Analysis", "Create engine repertoire", "Relative depth");
+	});
+
+	electron.ipcMain.on("ack_frequency_threshold", (event, msg) => {
+		set_checks("Analysis", "Create engine repertoire", "Frequency threshold (%)", msg);
 	});
 
 	electron.ipcMain.on("ack_node_limit", (event, msg) => {
@@ -3787,6 +3801,385 @@ function menu_build() {
 							args: ["halt"],
 						});
 					}
+				},
+				{
+					label: "Create engine repertoire",
+					submenu: [
+						{
+							label: "White repertoire",
+							click: () => {
+								win.webContents.send("call", {
+									fn: "start_create_repertoire",
+									args: ["create_repertoire_white"]
+								});
+							}
+						},
+						{
+							label: "Black repertoire",
+							click: () => {
+								win.webContents.send("call", {
+									fn: "start_create_repertoire",
+									args: ["create_repertoire_black"]
+								});
+							}
+						},
+						{
+							type: "separator"
+						},
+						{
+							label: "Depth (halfmoves)",
+							submenu: [
+								{
+									label: "1",
+									type: "checkbox",
+									checked: config.repertoire_depth == 1,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [1]
+										});
+									}
+								},
+								{
+									label: "2",
+									type: "checkbox",
+									checked: config.repertoire_depth == 2,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [2]
+										});
+									}
+								},
+								{
+									label: "3",
+									type: "checkbox",
+									checked: config.repertoire_depth == 3,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [3]
+										});
+									}
+								},
+								{
+									label: "4",
+									type: "checkbox",
+									checked: config.repertoire_depth == 4,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [4]
+										});
+									}
+								},
+								{
+									label: "5",
+									type: "checkbox",
+									checked: config.repertoire_depth == 5,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [5]
+										});
+									}
+								},
+								{
+									label: "6",
+									type: "checkbox",
+									checked: config.repertoire_depth == 6,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [6]
+										});
+									}
+								},
+								{
+									label: "7",
+									type: "checkbox",
+									checked: config.repertoire_depth == 7,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [7]
+										});
+									}
+								},
+								{
+									label: "8",
+									type: "checkbox",
+									checked: config.repertoire_depth == 8,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [8]
+										});
+									}
+								},
+								{
+									label: "9",
+									type: "checkbox",
+									checked: config.repertoire_depth == 9,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [9]
+										});
+									}
+								},
+								{
+									label: "10",
+									type: "checkbox",
+									checked: config.repertoire_depth == 10,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [10]
+										});
+									}
+								},
+								{
+									label: "11",
+									type: "checkbox",
+									checked: config.repertoire_depth == 11,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [11]
+										});
+									}
+								},
+								{
+									label: "12",
+									type: "checkbox",
+									checked: config.repertoire_depth == 12,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [12]
+										});
+									}
+								},
+								{
+									label: "13",
+									type: "checkbox",
+									checked: config.repertoire_depth == 13,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [13]
+										});
+									}
+								},
+								{
+									label: "14",
+									type: "checkbox",
+									checked: config.repertoire_depth == 14,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [14]
+										});
+									}
+								},
+								{
+									label: "15",
+									type: "checkbox",
+									checked: config.repertoire_depth == 15,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [15]
+										});
+									}
+								},
+								{
+									label: "16",
+									type: "checkbox",
+									checked: config.repertoire_depth == 16,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_repertoire_depth",
+											args: [16]
+										});
+									}
+								}
+							]
+						},
+						{
+							label: "Relative depth",
+							type: "checkbox",
+							checked: config.relative_depth,
+							click: () => {
+								win.webContents.send("call", {
+									fn: "toggle",
+									args: ["relative_depth"],
+								});
+							}
+						},
+						{
+							label: "Frequency threshold (%)",
+							submenu: [
+								{
+									label: "Most frequent move only",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0]
+										});
+									}
+								},
+								{
+									type: "separator"
+								},
+								{
+									label: "25",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.25,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.25]
+										});
+									}
+								},
+								{
+									label: "50",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.5,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.5]
+										});
+									}
+								},
+								{
+									label: "75",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.75,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.75]
+										});
+									}
+								},
+								{
+									label: "80",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.8,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.8]
+										});
+									}
+								},
+								{
+									label: "85",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.85,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.85]
+										});
+									}
+								},
+								{
+									label: "90",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.9,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.9]
+										});
+									}
+								},
+								{
+									label: "92.5",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.925,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.925]
+										});
+									}
+								},
+								{
+									label: "95",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.95,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.95]
+										});
+									}
+								},
+								{
+									label: "97.5",
+									type: "checkbox",
+									checked: config.frequency_threshold == 0.975,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [0.975]
+										});
+									}
+								},
+								{
+									label: "100",
+									type: "checkbox",
+									checked: config.frequency_threshold == 1,
+									click: () => {
+										win.webContents.send("call", {
+											fn: "set_frequency_threshold",
+											args: [1]
+										});
+									}
+								}
+							]
+						},
+						{
+							type: "separator"
+						},
+						{
+							label: "Save progress",
+							click: () => {
+								let file = save_dialog(win, {defaultPath: config.pgn_dialog_folder + "/[default]"});
+								if (typeof file === "string" && file.length > 0) {
+									win.webContents.send("call", {
+										fn: "save_repertoire_progress",
+										args: [file]
+									});
+								}
+							}
+						},
+						{
+							label: "Continue from progress",
+							click: () => {
+								let files = open_dialog(win, {
+									defaultPath: config.pgn_dialog_folder,
+									properties: ["openFile"],
+									filters: [{name: "Cache", extensions: ["cache"]}, {name: "All files", extensions: ["*"]}]
+								});
+								if (Array.isArray(files) && files.length > 0) {
+									let file = files[0];
+									win.webContents.send("call", {
+										fn: "open_repertoire_progress",
+										args: [file]
+									});
+								}
+							}
+						}
+					]
 				},
 				{
 					type: "separator"

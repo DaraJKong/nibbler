@@ -527,6 +527,12 @@ function DateString(dt) {
 	return parts.join(".");
 }
 
+function DateAndTimeString(dt) {
+	let date = dt.getFullYear()+"-"+(((dt.getMonth()+1)<10)?"0":"")+(dt.getMonth()+1)+"-"+((dt.getDate()<10)?"0":"")+dt.getDate();
+	let time = ((dt.getHours()<10)?"0":"")+dt.getHours()+"-"+((dt.getMinutes()<10)?"0":"")+dt.getMinutes()+"-"+((dt.getSeconds()<10)?"0":"")+dt.getSeconds();
+	return date + " " + time;
+}
+
 function QfromPawns(pawns) {
 
 	// Note carefully: the arg is pawns not centipawns.

@@ -28,6 +28,14 @@ function NewHub() {
 	hub.position_change_time = performance.now();		// Time of the last position change. Used for cooldown on hoverdraw.
 	hub.node_to_clean = hub.tree.node;					// The next node to be cleaned up (done when exiting it).
 	hub.leela_lock_node = null;							// Non-null only when in "analysis_locked" mode.
+	hub.repertoire_color = null;
+	hub.absolute_repertoire_depth = 0;
+	hub.cached_lookup = {
+		entry: null,
+		pos: null
+	};
+	hub.lookup_request = null;
+	hub.cached_positions = Object.create(null);
 
 	hub.looker.add_to_queue(hub.tree.node.board);		// Maybe make initial call to API such as ChessDN.cn...
 	Object.assign(hub, hub_props);
@@ -128,6 +136,106 @@ let hub_props = {
 			}
 
 			break;
+
+		case "create_repertoire_white":
+		case "create_repertoire_black":
+
+			let completed_node = true;
+			let empty_node = (this.tree.node.children.length == 0);
+			let incompleted_node = null;
+
+			if (!empty_node) {
+				Completion_Check: for (let child of this.tree.node.children) {
+					if (child.children.length == 0 && child.depth < this.absolute_repertoire_depth && !child.completed) {
+						completed_node = false;
+						incompleted_node = child;
+						break Completion_Check;
+					}
+				}
+			} else {
+				completed_node = false;
+			}
+
+			if (this.tree.node.depth >= this.absolute_repertoire_depth || completed_node) {
+				console.log("(create_repertoire) Node is completed, going back... this.tree.node:");
+				if (this.tree.node.depth == 0) {
+					this.set_behaviour("halt");
+				} else {
+					this.tree.prev();
+					this.position_changed(false, false);
+				}
+			} else if (empty_node) {
+				console.log("(create_repertoire) Node is empty, making a move...");
+				let repertoire_color = (config.behaviour == "create_repertoire_white"),
+						current_color = (this.tree.node.board.active === "w");
+
+				let board_fen = this.tree.node.board.fen();
+
+				if (repertoire_color == current_color) {
+					if (this.cached_positions[board_fen]) {
+						this.move(this.cached_positions[board_fen]);
+					} else {
+						if (this.maybe_setup_book_move()) {
+							this.__halt();
+							break;
+						}
+
+						if (this.engine.search_desired.node !== this.tree.node || this.engine.search_desired.limit !== this.node_limit()) {
+							this.__go(this.tree.node);
+						}
+					}
+				} else {
+					if (this.lookup_request && this.cached_lookup.pos == board_fen) {
+						if (CountProperties(this.cached_lookup.entry.moves) > 0) {
+							this.lookup_request = null;
+
+							let moves_p = this.get_percentage_moves();
+							if (moves_p) {
+								setTimeout(() => {
+									for (let move of moves_p) {
+										this.tree.make_move_sequence([move], false);
+									}
+									this.position_changed(false, false);
+								}, 0);
+							} else {
+								this.__halt();
+							}
+						} else {
+							console.log("API found no game for this position, going back...");
+							this.tree.node.completed = true;
+							this.tree.prev();
+							this.position_changed(false, false);
+						}
+					} else {
+						this.cached_lookup = {
+							entry: null,
+							pos: null
+						};
+						this.lookup_request = board_fen;
+					}
+				}
+			} else {
+				console.log("(create_repertoire) Node is incomplete, selecting next incompleted move...");
+				this.tree.set_node(incompleted_node);
+				this.position_changed(false, false);
+			}
+
+			break;
+		}
+	},
+
+	update_lookup_cache: function(entry, board) {
+		if (entry) {
+			this.cached_lookup = {
+				entry: entry,
+				pos: board.fen()
+			};
+		} else {
+			//console.log("(update_lookup_cache): entry received is not defined!");
+		}
+
+		if (this.lookup_request && this.cached_lookup.pos == this.tree.node.board.fen()) {
+			this.behave("behaviour");
 		}
 	},
 
@@ -167,7 +275,7 @@ let hub_props = {
 		// Caller can tell us the change would cause user confusion for some modes...
 
 		if (avoid_confusion) {
-			if (["play_white", "play_black", "self_play", "auto_analysis", "back_analysis"].includes(config.behaviour)) {
+			if (["play_white", "play_black", "self_play", "auto_analysis", "back_analysis", "create_repertoire_white", "create_repertoire_black"].includes(config.behaviour)) {
 				this.set_behaviour("halt");
 			}
 		}
@@ -180,6 +288,18 @@ let hub_props = {
 		this.node_to_clean = this.tree.node;
 
 		this.looker.add_to_queue(this.tree.node.board);
+	},
+
+	start_create_repertoire: function(behaviour) {
+		this.repertoire_color = (behaviour == "create_repertoire_white" ? "w" : "b");
+
+		if (config.relative_depth) {
+			this.absolute_repertoire_depth = config.repertoire_depth + this.tree.node.depth;
+		} else {
+			this.absolute_repertoire_depth = config.repertoire_depth;
+		}
+
+		this.set_behaviour(behaviour);
 	},
 
 	set_behaviour: function(s) {
@@ -856,6 +976,7 @@ let hub_props = {
 		}
 
 		let entry = this.looker.lookup(config.looker_api, this.tree.node.board);
+		this.update_lookup_cache(entry, this.tree.node.board);
 
 		if (!entry) {
 			ok = false;
@@ -892,6 +1013,44 @@ let hub_props = {
 		this.info_handler.draw_explorer_arrows(this.tree.node, this.explorer_objects_cache);
 	},
 
+	get_percentage_moves: function() {
+
+		let moves_p = [];
+
+		let entry = this.cached_lookup.entry;
+
+		if (entry) {
+			let total_weight = 0;
+			for (let o of Object.values(entry.moves)) {
+				total_weight += o.total;
+			}
+			if (total_weight <= 0) {
+				total_weight = 1;		// Avoid div by zero.
+			}
+
+			let tmp = {};
+			for (let move of Object.keys(entry.moves)) {
+				if (!this.tree.node.board.illegal(move)) {
+					if (tmp[move] === undefined) {
+						tmp[move] = {move: move, weight: entry.moves[move].total / total_weight};
+					}
+				}
+			}
+			this.explorer_cache_node_id = this.tree.node.id;
+			this.explorer_objects_cache = Object.values(tmp);
+			this.explorer_objects_cache.sort((a, b) => b.weight - a.weight);
+
+			let total_p = 0;
+			for (let i = 0; i < this.explorer_objects_cache.length; i++) {
+				total_p += this.explorer_objects_cache[i].weight;
+				moves_p.push(this.explorer_objects_cache[i].move);
+				if (total_p >= config.frequency_threshold) {
+					return moves_p;
+				}
+			}
+		}
+	},
+
 	draw_statusbox: function() {
 
 		let analysing_other = null;
@@ -925,6 +1084,9 @@ let hub_props = {
 	},
 
 	draw_infobox: function() {
+		let entry = config.looker_api ? this.looker.lookup(config.looker_api, this.tree.node.board) : null;
+		this.update_lookup_cache(entry, this.tree.node.board);
+		
 		this.info_handler.draw_infobox(
 			this.tree.node,
 			this.mouse_point(),
@@ -932,7 +1094,7 @@ let hub_props = {
 			this.tree.node.board.active,
 			this.hoverdraw_div,
 			config.behaviour === "halt" || config.never_suppress_searchmoves,
-			config.looker_api ? this.looker.lookup(config.looker_api, this.tree.node.board) : null);
+			entry);
 	},
 
 	// ---------------------------------------------------------------------------------------------------------------------
@@ -963,6 +1125,8 @@ let hub_props = {
 		case "self_play":
 		case "play_white":
 		case "play_black":
+		case "create_repertoire_white":
+		case "create_repertoire_black":
 
 			if (relevant_node !== this.tree.node) {
 				LogBoth(`(ignored bestmove, relevant_node !== hub.tree.node, config.behaviour was "${config.behaviour}")`);
@@ -971,6 +1135,16 @@ let hub_props = {
 			}
 
 			let tokens = s.split(" ").filter(z => z !== "");
+
+			if (config.behaviour == "create_repertoire_white" || config.behaviour == "create_repertoire_black") {
+				let board_fen = this.tree.node.board.fen();
+				if (!this.cached_positions[board_fen]) {
+					this.cached_positions[board_fen] = tokens[1];
+				} else {
+					console.log("(receive_bestmove) Position already cached!");
+				}
+			}
+
 			ok = this.move(tokens[1]);
 
 			if (!ok) {
@@ -1124,6 +1298,8 @@ let hub_props = {
 		case "self_play":
 		case "auto_analysis":
 		case "back_analysis":
+		case "create_repertoire_white":
+		case "create_repertoire_black":
 
 			cfg_value = engineconfig[this.engine.filepath].search_nodes_special;
 			break;
@@ -1182,12 +1358,28 @@ let hub_props = {
 		}
 	},
 
+	set_repertoire_depth: function(val) {
+		config.repertoire_depth = val;
+		this.send_ack_repertoire_depth();
+	},
+
+	set_relative_depth: function(val) {
+		config.relative_depth = val;
+		this.send_ack_relative_depth();
+	},
+
+	set_frequency_threshold: function(val) {
+		config.frequency_threshold = val;
+		this.send_ack_frequency_threshold();
+	},
+
 	set_node_limit: function(val) {
 		this.set_node_limit_generic(val, false);
 	},
 
 	set_node_limit_special: function(val) {
 		this.set_node_limit_generic(val, true);
+		this.cached_positions = Object.create(null);
 	},
 
 	set_node_limit_generic: function(val, special_flag) {
@@ -1220,6 +1412,21 @@ let hub_props = {
 		this.send_ack_node_limit(special_flag);
 
 		this.handle_search_params_change();
+	},
+
+	send_ack_repertoire_depth: function() {
+		let msg = config.repertoire_depth.toString();
+		ipcRenderer.send("ack_repertoire_depth", msg);
+	},
+
+	send_ack_relative_depth: function() {
+		let msg = config.relative_depth;
+		ipcRenderer.send("ack_relative_depth", msg);
+	},
+
+	send_ack_frequency_threshold: function() {
+		let msg = (config.frequency_threshold == 0 ? "Most frequent move only" : (config.frequency_threshold * 100).toString());
+		ipcRenderer.send("ack_frequency_threshold", msg);
 	},
 
 	send_ack_node_limit: function(special_flag) {
@@ -1525,6 +1732,7 @@ let hub_props = {
 				this.move(move);
 			} else if (config.looker_api) {					// Allow this to happen if the move is in the selected API database
 				let db_entry = this.looker.lookup(config.looker_api, this.tree.node.board);
+				this.update_lookup_cache(db_entry, this.tree.node.board);
 				if (db_entry && db_entry.moves[move]) {
 					this.move(move);
 				}
@@ -1633,6 +1841,42 @@ let hub_props = {
 		SavePGN(filename, this.tree.node);
 	},
 
+	save_repertoire_progress: function(filename) {
+		let data = {
+			engine_name: (this.engine.leelaish ? config.leelaish_names[0] : "SF"),
+			engine_path: this.engine.filepath,
+			weights_file: (this.engine.leelaish ? engineconfig[this.engine.filepath].options["WeightsFile"] : null),
+			repertoire_color: this.repertoire_color,
+			absolute_depth: this.absolute_repertoire_depth,
+			node_limit: engineconfig[this.engine.filepath].search_nodes_special,
+			frequency_threshold: config.frequency_threshold,
+			looker_api: config.looker_api,
+			last_node: this.tree.node.node_history().reduce(function(history, node) {
+				if (node.move) {
+					history.push(node.move);
+				}
+				return history;
+			}, []),
+			cached_positions: this.cached_positions,
+			date_and_time: DateAndTimeString(new Date())
+		};
+
+		filename = filename.replace(
+			"[default]",
+			data.engine_name + "-" + data.repertoire_color + "-" + data.absolute_depth + "-" + data.node_limit + "-" + (data.frequency_threshold * 100) + " (" + data.date_and_time + ")"
+		);
+
+		data.pgn_path = filename + ".pgn";
+
+		try {
+			fs.writeFileSync(filename + ".cache", JSON.stringify(data));
+		} catch (err) {
+			alert(err);
+		}
+
+		this.save(data.pgn_path);
+	},
+
 	// ---------------------------------------------------------------------------------------------------------------------
 	// Loading PGN...
 
@@ -1667,6 +1911,88 @@ let hub_props = {
 		});
 
 		this.loaders.push(loader);
+	},
+
+	open_repertoire_progress: function(filename) {
+		if (filename === __dirname || filename === ".") {		// Can happen when extra args are passed to main process. Silently return.
+			return;
+		}
+		if (fs.existsSync(filename) === false) {				// Can happen when extra args are passed to main process. Silently return.
+			return;
+		}
+		if (!config.ignore_filesize_limits && FileExceedsGigabyte(filename, 2)) {
+			alert(messages.file_too_big);
+			return;
+		}
+
+		let progress = Object.create(null);
+		fs.readFile(filename, (err, data) => {
+			if (err) {
+				console.log("Failed to read file: " + filename);
+			} else {
+				progress = JSON.parse(data);
+
+				this.open(progress.pgn_path);
+
+				if (this.engine.filepath != progress.engine_path) {
+					console.log("(open_repertoire_progress) Switching engine...");
+					this.switch_engine(progress.engine_path);
+				} else {
+					console.log("(open_repertoire_progress) Engine is already correct.");
+				}
+
+				if (progress.engine_name == "Lc0" && progress.weights_file) {
+					if (engineconfig[this.engine.filepath].options["WeightsFile"] != progress.weights_file) {
+						console.log("(open_repertoire_progress) Restoring correct weights file...");
+						this.set_uci_option_permanent("WeightsFile", progress.weights_file);
+					} else {
+						console.log("(open_repertoire_progress) Weights file is already correct.");
+					}
+				}
+
+				this.set_relative_depth(false);
+				if (progress.absolute_depth) {
+					this.set_repertoire_depth(progress.absolute_depth);
+				} else {
+					console.log("Missing progress.absolute_depth!");
+				}
+				if (progress.node_limit) {
+					this.set_node_limit_special(progress.node_limit);
+				} else {
+					console.log("Missing progress.node_limit!");
+				}
+				if (progress.frequency_threshold) {
+					this.set_frequency_threshold(progress.frequency_threshold);
+				} else {
+					console.log("Missing progress.frequency_threshold!");
+				}
+				if (progress.looker_api) {
+					this.set_looker_api(progress.looker_api);
+				} else {
+					console.log("Missing progress.looker_api!");
+				}
+
+				if (progress.cached_positions) {
+					this.cached_positions = progress.cached_positions;
+				} else {
+					console.log("No cached positions from progress.");
+				}
+
+				/*if (progress.repertoire_color != this.tree.node.board.active) {
+					this.toggle("flip");
+				}*/
+
+				this.set_special_message(`Waiting for the PGN file to fully load...`, "blue");
+				setTimeout(() => {
+					this.tree.make_move_sequence(progress.last_node, true);
+					this.position_changed(false, false);
+
+					setTimeout(() => {
+						this.start_create_repertoire(progress.repertoire_color == "w" ? "create_repertoire_white" : "create_repertoire_black");
+					}, 500);
+				}, 500);
+			}
+		});
 	},
 
 	handle_loaded_pgndata: function(pgndata) {

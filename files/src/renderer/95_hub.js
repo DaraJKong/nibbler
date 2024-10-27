@@ -186,7 +186,7 @@ let hub_props = {
 					}
 				} else {
 					if (this.lookup_request && this.cached_lookup.pos == board_fen) {
-						if (CountProperties(this.cached_lookup.entry.moves) > 0) {
+						if (Object.keys(this.cached_lookup.entry.moves).length > 0) {
 							this.lookup_request = null;
 
 							let moves_p = this.get_percentage_moves();

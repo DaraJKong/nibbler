@@ -23,6 +23,7 @@ For prebuilt binary releases, see the [Releases](https://github.com/rooklift/nib
 * Supports PGN variations of arbitrary depth.
 * FEN loading.
 * Chess 960.
+* Repertoire creation (engine vs API common moves).
 
 ## Installation - Windows / Linux
 
